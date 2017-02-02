@@ -16,6 +16,8 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -61,6 +63,9 @@ class Communication implements Runnable {
         int maxIter = 1000000000;
         int i = 0;
         boolean firstTime = true;
+        
+                long time = 0;
+        String timbre = null;
         do {
             try {
                 output = socket.getOutputStream();
@@ -98,12 +103,21 @@ class Communication implements Runnable {
                     switch (commande) {
                         case "APOP":
                             if (etat == this.AUTORISATION) {
-                                if (1 == 1) { //Remplacer par le controle de validité des connexion
+                                String user = null;
+                                String somme = null;
+                                if(tabRequete.length==3){
+                                    user = tabRequete[1];
+                                somme = tabRequete[2];
+                                }
+                                
+                                if (user!= null && somme !=null && user.equals("demo@polytech.fr") && somme.equals(getSomme("demo", timbre))) { //Remplacer par le controle de validité des connexion
+                                    Utilitaire.print("Utilisateur Authentifié", Utilitaire.ANSI_CYAN);
                                     connect = true;
                                     etat = this.TRANSACTION;
-                                    reponse = "+OK maildrop has " + nbMessagesNonLu + " messages (" + tailleMessagesNonLu + " octets)";
+                                    reponse = "+OK maildrop has " + nbMessagesNonLu + " messages ("+tailleMessagesNonLu+" octets)";
                                 } else {
                                     nbConnect++;
+                                         Utilitaire.print("Authentification échouée ", Utilitaire.ANSI_RED);
                                 }
                                 if (!connect && nbConnect >= 3) {
                                     reponse = "-ERR tentatives de connexion épuissé";
@@ -170,8 +184,12 @@ class Communication implements Runnable {
                     }
                 }
                 if (firstTime) {
-                    reponse = "+OK POP3 server ready";
                     firstTime = false;
+                    time = System.currentTimeMillis();
+                    timbre = "<" + time + "@serveurPOP3.fr" + ">";
+                    reponse = "+OK POP3 server ready "+timbre;
+                    
+                    System.out.println(getSomme("mdpDemo", timbre));
                 }
 
                 if (reponse.length() > 0) {
@@ -213,5 +231,35 @@ class Communication implements Runnable {
         toDelete = new ArrayList<>();
 
         return nbMessagesBeforeDel - mailFile.getNombreMails() - nbMessagesToDel;
+    }
+    
+    public static String getSomme(String mdp, String timbre) {
+        String somme = null;
+        MessageDigest md;
+        try {
+            String message = timbre + mdp;
+            md = MessageDigest.getInstance("md5");
+            md.update(message.getBytes());
+
+            byte[] digest = null;
+            digest = md.digest();
+           // System.err.println(bytesToHex(digest));
+
+            somme = bytesToHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            System.err.println("Erreur lors de la génération de la somme de controle");
+        }
+        return somme;
+    }
+
+    public static String bytesToHex(byte[] b) {
+        char hexDigits[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a',
+            'b', 'c', 'd', 'e', 'f'};
+        StringBuffer buffer = new StringBuffer();
+        for (int j = 0; j < b.length; j++) {
+            buffer.append(hexDigits[(b[j] >> 4) & 0x0f]);
+            buffer.append(hexDigits[b[j] & 0x0f]);
+        }
+        return buffer.toString();
     }
 }
